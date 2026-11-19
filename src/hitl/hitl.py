@@ -67,32 +67,16 @@ class ConfidenceRouter:
         Returns:
             RoutingDecision with routing action and metadata
         """
-        # Optional: Implement routing logic
-        #
-        # 1. Check if action_type is in HIGH_RISK_ACTIONS
-        #    -> If yes: always escalate (action="escalate", priority="high",
-        #       requires_human=True, reason="High-risk action: {action_type}")
-        #
-        # 2. Check confidence thresholds:
-        #    - confidence >= 0.9:
-        #      action="auto_send", priority="low",
-        #      requires_human=False, reason="High confidence"
-        #
-        #    - 0.7 <= confidence < 0.9:
-        #      action="queue_review", priority="normal",
-        #      requires_human=True, reason="Medium confidence — needs review"
-        #
-        #    - confidence < 0.7:
-        #      action="escalate", priority="high",
-        #      requires_human=True, reason="Low confidence — escalating"
-
-        return RoutingDecision(
-            action="auto_send",
-            confidence=confidence,
-            reason="TODO: implement routing logic",
-            priority="low",
-            requires_human=False,
-        )  # TODO: Replace with implementation
+        confidence = max(0.0, min(1.0, float(confidence)))
+        if action_type in HIGH_RISK_ACTIONS:
+            action, priority, reason, human = "escalate", "high", f"High-risk action: {action_type}", True
+        elif confidence >= self.HIGH_THRESHOLD:
+            action, priority, reason, human = "auto_send", "low", "High confidence", False
+        elif confidence >= self.MEDIUM_THRESHOLD:
+            action, priority, reason, human = "queue_review", "normal", "Medium confidence — needs review", True
+        else:
+            action, priority, reason, human = "escalate", "high", "Low confidence — escalating", True
+        return RoutingDecision(action, confidence, reason, priority, human)
 
 
 # ============================================================
@@ -115,33 +99,33 @@ class ConfidenceRouter:
 hitl_decision_points = [
     {
         "id": 1,
-        "name": "TODO: Name this decision point",
-        "trigger": "TODO: When does this trigger?",
-        "hitl_model": "TODO: human-in-the-loop / human-on-the-loop / human-as-tiebreaker",
-        "context_needed": "TODO: What does the reviewer need to see?",
-        "example": "TODO: Give a concrete example scenario",
-        "approval_path": "TODO: Explain approve, reject and timeout behavior",
-        "audit_fields": "TODO: List correlation ID, intent, diff and reviewer decision",
+        "name": "High-value transfer approval",
+        "trigger": "Any customer initiated transfer above the configured risk threshold, or a new payee transfer flagged as anomalous.",
+        "hitl_model": "human-in-the-loop",
+        "context_needed": "Authenticated customer, amount, source and destination accounts, payee history, fraud signals, and the exact proposed transfer.",
+        "example": "A verified customer requests a 75,000,000 VND transfer to a newly added beneficiary.",
+        "approval_path": "Hold before execution; reviewer approves or rejects. Timeout expires the pending request and no transfer occurs.",
+        "audit_fields": "correlation_id, customer_id, intent, amount, source/destination token, risk signals, proposed action hash, reviewer_id, decision, timestamp, timeout.",
     },
     {
         "id": 2,
-        "name": "TODO: Name this decision point",
-        "trigger": "TODO: When does this trigger?",
-        "hitl_model": "TODO: human-in-the-loop / human-on-the-loop / human-as-tiebreaker",
-        "context_needed": "TODO: What does the reviewer need to see?",
-        "example": "TODO: Give a concrete example scenario",
-        "approval_path": "TODO: Explain approve, reject and timeout behavior",
-        "audit_fields": "TODO: List correlation ID, intent, diff and reviewer decision",
+        "name": "Account recovery and credential reset",
+        "trigger": "Identity verification is ambiguous, recovery factors conflict, or a reset request follows suspicious account activity.",
+        "hitl_model": "human-as-tiebreaker",
+        "context_needed": "Verification results, recent login/device history, recovery channel ownership, and requested account changes; never display existing secrets.",
+        "example": "A caller passes one recovery check but the requested phone number differs from the account record.",
+        "approval_path": "Automated checks decide routine cases; an authorized reviewer resolves conflicts. Reject or timeout leaves credentials unchanged and offers a secure recovery route.",
+        "audit_fields": "correlation_id, customer_id, recovery_intent, factor results, before/after diff, reviewer_id, decision, timestamp, reason code.",
     },
     {
         "id": 3,
-        "name": "TODO: Name this decision point",
-        "trigger": "TODO: When does this trigger?",
-        "hitl_model": "TODO: human-in-the-loop / human-on-the-loop / human-as-tiebreaker",
-        "context_needed": "TODO: What does the reviewer need to see?",
-        "example": "TODO: Give a concrete example scenario",
-        "approval_path": "TODO: Explain approve, reject and timeout behavior",
-        "audit_fields": "TODO: List correlation ID, intent, diff and reviewer decision",
+        "name": "Dispute and fraud claim decision",
+        "trigger": "A proposed transaction dispute exceeds the self-service authority or evidence is conflicting.",
+        "hitl_model": "human-on-the-loop",
+        "context_needed": "Transaction metadata, customer statement, evidence provenance, policy criteria, and model recommendation with uncertainty.",
+        "example": "A customer disputes a card payment that device telemetry marks as authenticated but the merchant record is inconsistent.",
+        "approval_path": "The system prepares a recommendation and queues review. The reviewer may uphold, decline, or request evidence; timeout keeps the claim pending and sends no irreversible action.",
+        "audit_fields": "correlation_id, dispute_id, intent, evidence references, recommendation, uncertainty, decision, reviewer_id, timestamp, rationale.",
     },
 ]
 

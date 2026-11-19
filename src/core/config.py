@@ -27,7 +27,26 @@ try:
 
     load_dotenv(_ROOT / ".env")
 except ImportError:
-    pass
+    # Keep local runs usable when the optional loader is absent from the
+    # interpreter. Values are loaded into the process only and never logged.
+    env_file = _ROOT / ".env"
+    if env_file.is_file():
+        for raw_line in env_file.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("export "):
+                line = line[7:].lstrip()
+            if "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key, value = key.strip(), value.strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+                value = value[1:-1]
+            elif " #" in value:
+                value = value.split(" #", 1)[0].rstrip()
+            if key:
+                os.environ.setdefault(key, value)
 
 # --- Providers ---
 PROVIDER_OPENAI = "openai"

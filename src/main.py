@@ -134,10 +134,12 @@ async def part4_attacks():
 
 
 async def main(parts=None):
-    setup_api_key()
-
     if parts is None:
         parts = [2, 3, 4]  # Core: CP2 → CP3 → CP4
+    # Checkpoint 2 runs local regex examples only; reserve credential setup for
+    # checkpoints that actually call a model.
+    if any(part in {3, 4} for part in parts):
+        setup_api_key()
 
     for part in parts:
         if part == 2:
